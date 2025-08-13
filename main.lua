@@ -4,15 +4,31 @@ local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 
 local ESPData = {}
-local ESPEnabled = true -- toggle state
+local Connections = {}
+local ESPEnabled = true
 
--- Toggle function for FE Hub
+-- Destroy everything function
+local function DestroyESP()
+    for player, data in pairs(ESPData) do
+        if data.NameTag then data.NameTag:Destroy() end
+        if data.Outline then data.Outline:Destroy() end
+    end
+    ESPData = {}
+    -- Disconnect all connections
+    for _, conn in pairs(Connections) do
+        conn:Disconnect()
+    end
+    Connections = {}
+end
+
+-- Toggle function
 local function ToggleESP()
     ESPEnabled = not ESPEnabled
     if not ESPEnabled then
-        for player, data in pairs(ESPData) do
-            if data.NameTag then data.NameTag.Text = "" end
-            if data.Outline then data.Outline.Size = UDim2.new(0,0,0,0) end
+        DestroyESP()
+    else
+        for _, player in ipairs(Players:GetPlayers()) do
+            createSmoothESP(player)
         end
     end
 end
@@ -27,6 +43,7 @@ local function createSmoothESP(player)
 
     ESPData[player] = {}
 
+    -- NameTag
     local head = player.Character:FindFirstChild("Head")
     if head then
         local billboard = Instance.new("BillboardGui")
@@ -38,7 +55,6 @@ local function createSmoothESP(player)
         billboard.Parent = head
 
         local textLabel = Instance.new("TextLabel")
-        textLabel.Name = "TagLabel"
         textLabel.Size = UDim2.new(1,0,1,0)
         textLabel.BackgroundTransparency = 1
         textLabel.TextColor3 = Color3.new(1,1,1)
@@ -50,31 +66,32 @@ local function createSmoothESP(player)
         ESPData[player].NameTag = textLabel
     end
 
+    -- Outline
     local root = player.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return end
+    if root then
+        local boxGui = Instance.new("BillboardGui")
+        boxGui.Name = "SmoothESP"
+        boxGui.AlwaysOnTop = true
+        boxGui.Size = UDim2.new(0,60,0,150)
+        boxGui.Parent = root
 
-    local boxGui = Instance.new("BillboardGui")
-    boxGui.Name = "SmoothESP"
-    boxGui.AlwaysOnTop = true
-    boxGui.Size = UDim2.new(0,60,0,150)
-    boxGui.Parent = root
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1,0,1,0)
+        frame.BackgroundTransparency = 1
+        frame.Position = UDim2.new(0,0,0,0)
+        frame.Parent = boxGui
 
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1,0,1,0)
-    frame.BackgroundTransparency = 1
-    frame.Position = UDim2.new(0,0,0,0)
-    frame.Parent = boxGui
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = 2
+        stroke.Color = Color3.fromRGB(255,0,0)
+        stroke.Parent = frame
 
-    local stroke = Instance.new("UIStroke")
-    stroke.Thickness = 2
-    stroke.Color = Color3.fromRGB(255,0,0)
-    stroke.Parent = frame
-
-    ESPData[player].Outline = boxGui
+        ESPData[player].Outline = boxGui
+    end
 end
 
 local function updateESP(player)
-    if not player.Character or not ESPData[player] or not ESPEnabled then return end
+    if not ESPEnabled or not player.Character or not ESPData[player] then return end
     local humanoid = player.Character:FindFirstChild("Humanoid")
     if not humanoid then return end
 
@@ -98,9 +115,7 @@ local function updateESP(player)
         end
 
         if minX and maxX and minY and maxY and ESPData[player].Outline then
-            local width = maxX - minX
-            local height = maxY - minY
-            ESPData[player].Outline.Size = UDim2.new(0, width, 0, height)
+            ESPData[player].Outline.Size = UDim2.new(0, maxX-minX, 0, maxY-minY)
         end
 
         if ESPData[player].NameTag then
@@ -115,29 +130,26 @@ local function updateESP(player)
 end
 
 local function setupPlayer(player)
-    player.CharacterAdded:Connect(function()
+    local conn1 = player.CharacterAdded:Connect(function()
         wait(0.1)
         createSmoothESP(player)
     end)
-    if player.Character then
-        createSmoothESP(player)
-    end
+    table.insert(Connections, conn1)
+    if player.Character then createSmoothESP(player) end
 end
 
 for _, player in ipairs(Players:GetPlayers()) do
     setupPlayer(player)
 end
-Players.PlayerAdded:Connect(setupPlayer)
+table.insert(Connections, Players.PlayerAdded:Connect(setupPlayer))
 
-RunService.RenderStepped:Connect(function()
+table.insert(Connections, RunService.RenderStepped:Connect(function()
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            updateESP(player)
-        end
+        if player ~= LocalPlayer then updateESP(player) end
     end
-end)
+end))
 
--- Return table for FE Hub integration
 return {
-    Toggle = ToggleESP
+    Toggle = ToggleESP,
+    Destroy = DestroyESP
 }
