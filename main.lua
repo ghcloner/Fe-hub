@@ -4,19 +4,29 @@ local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
 
 local ESPData = {}
+local ESPEnabled = true -- toggle state
+
+-- Toggle function for FE Hub
+local function ToggleESP()
+    ESPEnabled = not ESPEnabled
+    if not ESPEnabled then
+        for player, data in pairs(ESPData) do
+            if data.NameTag then data.NameTag.Text = "" end
+            if data.Outline then data.Outline.Size = UDim2.new(0,0,0,0) end
+        end
+    end
+end
 
 local function isEnemy(player)
     return LocalPlayer.Team ~= player.Team and player.Team ~= nil
 end
 
--- Create smooth outline ESP
 local function createSmoothESP(player)
     if player == LocalPlayer or ESPData[player] or not isEnemy(player) then return end
     if not player.Character then return end
 
     ESPData[player] = {}
 
-    -- Name + Health
     local head = player.Character:FindFirstChild("Head")
     if head then
         local billboard = Instance.new("BillboardGui")
@@ -40,7 +50,6 @@ local function createSmoothESP(player)
         ESPData[player].NameTag = textLabel
     end
 
-    -- Smooth outline
     local root = player.Character:FindFirstChild("HumanoidRootPart")
     if not root then return end
 
@@ -64,9 +73,8 @@ local function createSmoothESP(player)
     ESPData[player].Outline = boxGui
 end
 
--- Update ESP
 local function updateESP(player)
-    if not player.Character or not ESPData[player] then return end
+    if not player.Character or not ESPData[player] or not ESPEnabled then return end
     local humanoid = player.Character:FindFirstChild("Humanoid")
     if not humanoid then return end
 
@@ -106,7 +114,6 @@ local function updateESP(player)
     end
 end
 
--- Setup Player
 local function setupPlayer(player)
     player.CharacterAdded:Connect(function()
         wait(0.1)
@@ -122,7 +129,6 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 Players.PlayerAdded:Connect(setupPlayer)
 
--- RenderStepped loop
 RunService.RenderStepped:Connect(function()
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
@@ -130,3 +136,8 @@ RunService.RenderStepped:Connect(function()
         end
     end
 end)
+
+-- Return table for FE Hub integration
+return {
+    Toggle = ToggleESP
+}
